@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Smart Milk Shop</title>
+<style>
+:root{--bg:#f3f8f4;--card:#fff;--tx:#14261a;--mut:#5b6e60;--pri:#14532d;--onpri:#fff;--acc:#bbf7d0;--warn:#ea580c;--err:#dc2626;--bd:#d6e4d9;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d1a12;--card:#16261c;--tx:#e6f2e9;--mut:#9bb3a2;--pri:#86efac;--onpri:#0d1a12;--acc:#1d4a2e;--bd:#26402f}}
+:root[data-theme="dark"]{--bg:#0d1a12;--card:#16261c;--tx:#e6f2e9;--mut:#9bb3a2;--pri:#86efac;--onpri:#0d1a12;--acc:#1d4a2e;--bd:#26402f}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{background:var(--pri);color:var(--onpri);padding:12px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+header h1{font-size:18px;margin:0}
+nav{display:flex;gap:6px;flex-wrap:wrap}
+nav button{background:transparent;color:var(--onpri);border:1px solid color-mix(in srgb,var(--onpri) 40%,transparent);padding:6px 12px;border-radius:999px;cursor:pointer;font:inherit}
+nav button.on{background:var(--onpri);color:var(--pri);font-weight:600}
+main{max-width:1000px;margin:0 auto;padding:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px 14px}
+.card small{color:var(--mut);display:block}.card b{font-size:20px}
+.warn b{color:var(--warn)}.bad b{color:var(--err)}.ok b{color:var(--pri)}
+h2{font-size:16px;margin:18px 0 8px}
+form,.row{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:10px}
+label{display:flex;flex-direction:column;font-size:12px;color:var(--mut);gap:3px}
+input,select{padding:8px;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--tx);font:inherit;min-width:110px}
+.btn{background:var(--pri);color:var(--onpri);border:0;padding:9px 16px;border-radius:8px;font:inherit;font-weight:600;cursor:pointer}
+.btn.alt{background:transparent;color:var(--pri);border:1px solid var(--pri)}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;background:var(--card);border:1px solid var(--bd);border-radius:10px}
+th,td{padding:7px 10px;text-align:left;border-bottom:1px solid var(--bd);white-space:nowrap}
+th{background:var(--acc);font-size:12px}
+.alert{padding:10px 12px;border-radius:10px;margin:10px 0;font-weight:600}
+.alert.w{background:#ffedd5;color:#9a3412}.alert.g{background:#dcfce7;color:#14532d}.alert.r{background:#fee2e2;color:#991b1b}
+.mut{color:var(--mut)}
+</style></head><body>
+<header><h1>🥛 Smart Milk Shop</h1><nav id="nav"></nav></header>
+<main id="app"></main>
+<script>
+const MILKS=[{id:'cow',name:'Cow Milk',on:60,off:60},{id:'buf',name:'Buffalo Milk',on:70,off:70}];
+const TABS=[['dash','Dashboard'],['inv','Inventory'],['pos','POS'],['del','Deliveries'],['close','Reconcile &amp; Close']];
+const today=()=>new Date().toISOString().slice(0,10);
+let S={open:{},tx:[],sales:[],dels:[],pays:[],exp:[],closed:null,date:today()};
+let tab='dash',msg='';
+try{const r=localStorage.getItem('milkshop');if(r)S=JSON.parse(r)}catch(e){}
+const save=()=>{try{localStorage.setItem('milkshop',JSON.stringify(S))}catch(e){}};
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const L=n=>(Math.round(n*1000)/1000)+' L',R=n=>'₹'+(Math.round(n*100)/100).toLocaleString('en-IN');
+const nm=id=>MILKS.find(m=>m.id===id).name;
+const sum=(a,f)=>a.reduce((s,x)=>s+f(x),0);
+const q=(m,c)=>sum(S.tx.filter(t=>t.c===c&&(!m||t.m===m)),t=>t.q);
+function stock(m){const o=+(S.open[m]||0),p=q(m,'purchase'),r=q(m,'return'),on=q(m,'online'),off=q(m,'offline'),w=q(m,'wastage');return{o,p,r,on,off,w,exp:o+p+r-on-off-w}}
+function tot(){const z=MILKS.map(m=>stock(m.id)),k=f=>sum(z,f);
+ const osale=sum(S.sales,s=>s.total),dsale=sum(S.dels,d=>d.actual*d.price),rec=sum(S.pays,p=>p.amt),ex=sum(S.exp,e=>e.amt);
+ return{o:k(x=>x.o),p:k(x=>x.p),on:k(x=>x.on),off:k(x=>x.off),w:k(x=>x.w),exp:k(x=>x.exp),osale,dsale,sales:osale+dsale,rec,pend:osale+dsale-rec,ex}}
+function log(m,c,qty,note){S.tx.push({id:'T'+(S.tx.length+1),t:new Date().toLocaleTimeString(),m,c,q:qty,note:note||''})}
+const mopts=()=>MILKS.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
+const v=id=>$(id).value;
+function say(t){msg=t;render()}
+function locked(){if(S.closed){say('Day is closed. No further changes allowed.');return true}return false}
+
+function openStock(){const m=v('om'),x=parseFloat(v('oq'));if(locked()||!(x>=0))return;S.open[m]=x;save();say('Opening stock saved.')}
+function move(){const m=v('mm'),c=v('mc'),x=parseFloat(v('mq'));if(locked())return;if(!(x>0))return say('Enter a valid quantity.');
+ if(c==='purchase'&&!(parseFloat(v('mp'))>=0))return say('Enter purchase price.');
+ log(m,c,x,c==='purchase'?'Supplier '+esc(v('ms')||'-')+' @ ₹'+v('mp')+'/L':'');save();say('Recorded.')}
+function sell(){if(locked())return;const m=v('pm'),x=parseFloat(v('pq')),rc=parseFloat(v('pr')||0),mt=MILKS.find(a=>a.id===m);
+ if(!(x>0))return say('Enter quantity.');if(x>stock(m).exp)return say('Not enough stock. Available: '+L(stock(m).exp));
+ const total=x*mt.off;if(rc>total)return say('Received amount is more than total.');
+ const id='S'+(S.sales.length+1);S.sales.push({id,m,q:x,price:mt.off,total,rec:rc,cust:v('pc')||'Walk-in',time:new Date().toLocaleTimeString()});
+ log(m,'offline',x,id);if(rc>0)S.pays.push({amt:rc,method:v('pt'),ref:id,who:v('pc')||'Walk-in'});
+ save();say(`Receipt ${id}: ${x} L ${nm(m)} × ₹${mt.off} = ${R(total)}, received ${R(rc)}, pending ${R(total-rc)}`)}
+function deliver(){if(locked())return;const m=v('dm'),sch=parseFloat(v('ds')),act=parseFloat(v('da')),mt=MILKS.find(a=>a.id===m);
+ if(!(sch>0)||!(act>=0))return say('Check quantities.');if(act>stock(m).exp)return say('Not enough stock. Available: '+L(stock(m).exp));
+ const st=act===0?'Failed':act<sch?'Partial':'Delivered',id='D'+(S.dels.length+1);
+ S.dels.push({id,cust:v('dc')||'Customer',m,sched:sch,actual:act,price:mt.on,st});
+ if(act>0)log(m,'online',act,id);const pay=parseFloat(v('dp')||0);if(pay>0)S.pays.push({amt:pay,method:'cash',ref:id,who:v('dc')});
+ save();say(`${st}: ${act} L deducted (scheduled ${sch} L).`)}
+function closeDay(){if(S.closed)return say('Already closed.');
+ const act={};for(const m of MILKS){const x=parseFloat(v('ac_'+m.id));if(!(x>=0))return say('Enter physical stock for '+m.name);act[m.id]=x}
+ const e=parseFloat(v('ce')||0);if(e>0)S.exp.push({amt:e,cat:'Daily expenses'});
+ S.closed={act,at:new Date().toLocaleString()};save();say('Day closed.')}
+function reset(){if(confirm('Delete all data?')){S={open:{},tx:[],sales:[],dels:[],pays:[],exp:[],closed:null,date:today()};save();say('Reset.')}}
+function sample(){S={open:{cow:50},tx:[],sales:[],dels:[],pays:[],exp:[],closed:null,date:today()};
+ log('cow','purchase',50,'Sample purchase');
+ [['Rahul',1.5],['Anita',2],['Kiran',1],['Suresh',25.5]].forEach(([c,a],i)=>{S.dels.push({id:'D'+(i+1),cust:c,m:'cow',sched:a,actual:a,price:60,st:'Delivered'});log('cow','online',a,'D'+(i+1))});
+ S.sales.push({id:'S1',m:'cow',q:50,price:60,total:3000,rec:2500,cust:'Walk-in',time:'-'});log('cow','offline',50,'S1');
+ S.pays.push({amt:2500,method:'cash',ref:'S1',who:'Walk-in'},{amt:1000,method:'upi',ref:'D1',who:'Rahul'});
+ log('cow','wastage',2,'Spilled');save();say('Sample loaded: now go to Reconcile & Close and enter 17 L physical stock.')}
+
+function bars(){const t=tot(),mx=Math.max(t.on,t.off,t.p,1);
+ const b=(l,x,c,i)=>`<rect x="${40+i*90}" y="${130-x/mx*110}" width="60" height="${x/mx*110}" fill="${c}"/><text x="${70+i*90}" y="148" text-anchor="middle" font-size="11" fill="currentColor">${l}</text><text x="${70+i*90}" y="${124-x/mx*110}" text-anchor="middle" font-size="11" fill="currentColor">${L(x)}</text>`;
+ return `<svg viewBox="0 0 400 155" style="width:100%;max-width:440px">${b('Purchased',t.p,'#16a34a',0)}${b('Online',t.on,'#0ea5e9',1)}${b('Offline',t.off,'#ea580c',2)}${b('Wastage',t.w,'#dc2626',3)}</svg>`}
+const C=(l,x,cl)=>`<div class="card ${cl||''}"><small>${l}</small><b>${x}</b></div>`;
+
+function vDash(){const t=tot();return `<div class="row"><button class="btn alt" onclick="sample()">Load sample scenario</button><button class="btn alt" onclick="reset()">Reset all data</button></div>
+<h2>Milk</h2><div class="grid">${C('Opening stock',L(t.o))}${C('Milk purchased',L(t.p))}${C('Online delivered',L(t.on))}${C('Offline sold',L(t.off))}${C('Wastage',L(t.w),'warn')}${C('Expected stock now',L(t.exp),'ok')}</div>
+<h2>Money</h2><div class="grid">${C('Online sales',R(t.dsale))}${C('Offline sales',R(t.osale))}${C('Total expected',R(t.sales))}${C('Received',R(t.rec),'ok')}${C('Pending',R(t.pend),t.pend>0?'warn':'')}${C('Expenses',R(t.ex))}${C('Net collection',R(t.rec-t.ex))}</div>
+<h2>Milk movement</h2><div class="card">${bars()}</div>
+<p class="mut">All figures are calculated from the records entered here. Data is saved in this browser only.</p>`}
+
+function vInv(){return `<h2>Opening stock (admin only)</h2><div class="row"><label>Milk<select id="om">${mopts()}</select></label><label>Litres<input id="oq" type="number" step="0.25" min="0"></label><button class="btn" onclick="openStock()">Save opening</button></div>
+<p class="mut">${MILKS.map(m=>m.name+': '+L(+(S.open[m.id]||0))).join(' · ')}</p>
+<h2>Stock movement</h2><div class="row"><label>Milk<select id="mm">${mopts()}</select></label><label>Type<select id="mc"><option value="purchase">Purchase</option><option value="return">Customer return</option><option value="wastage">Wastage / leakage</option></select></label><label>Litres<input id="mq" type="number" step="0.25" min="0"></label><label>Supplier<input id="ms"></label><label>Cost ₹/L<input id="mp" type="number" min="0" step="0.5"></label><button class="btn" onclick="move()">Add</button></div>
+<h2>Inventory ledger</h2><div class="tw"><table><tr><th>ID</th><th>Time</th><th>Milk</th><th>Category</th><th>Qty</th><th>Notes</th></tr>${S.tx.slice().reverse().slice(0,25).map(t=>`<tr><td>${t.id}</td><td>${t.t}</td><td>${nm(t.m)}</td><td>${t.c}</td><td>${L(t.q)}</td><td>${t.note}</td></tr>`).join('')||'<tr><td colspan=6 class="mut">No transactions yet</td></tr>'}</table></div>`}
+
+function vPos(){return `<h2>Counter sale</h2><div class="row"><label>Milk<select id="pm" onchange="calc()">${mopts()}</select></label><label>Litres<input id="pq" type="number" step="0.25" min="0" oninput="calc()"></label><label>Customer<input id="pc" placeholder="Walk-in"></label><label>Received ₹<input id="pr" type="number" min="0" oninput="calc()"></label><label>Method<select id="pt"><option>cash</option><option>upi</option><option>other</option></select></label><button class="btn" onclick="sell()">Record sale</button></div>
+<div class="card" id="calc">Total: ₹0 · Pending: ₹0</div>
+<h2>Today’s offline sales</h2><div class="tw"><table><tr><th>ID</th><th>Customer</th><th>Milk</th><th>Qty</th><th>Rate</th><th>Total</th><th>Received</th><th>Pending</th></tr>${S.sales.slice().reverse().map(s=>`<tr><td>${s.id}</td><td>${esc(s.cust)}</td><td>${nm(s.m)}</td><td>${L(s.q)}</td><td>${R(s.price)}</td><td>${R(s.total)}</td><td>${R(s.rec)}</td><td>${R(s.total-s.rec)}</td></tr>`).join('')||'<tr><td colspan=8 class="mut">No sales yet</td></tr>'}</table></div>`}
+function calc(){const m=MILKS.find(a=>a.id===v('pm')),t=(parseFloat(v('pq'))||0)*m.off,r=parseFloat(v('pr'))||0;$('calc').textContent=`Total: ${R(t)} · Pending: ${R(Math.max(t-r,0))}`}
+
+function vDel(){return `<h2>Record home delivery</h2><div class="row"><label>Customer<input id="dc"></label><label>Milk<select id="dm">${mopts()}</select></label><label>Scheduled L<input id="ds" type="number" step="0.25" min="0"></label><label>Delivered L<input id="da" type="number" step="0.25" min="0"></label><label>Paid now ₹<input id="dp" type="number" min="0"></label><button class="btn" onclick="deliver()">Save</button></div>
+<p class="mut">Only the actual delivered litres are deducted from stock. Delivery is not marked as paid automatically.</p>
+<div class="tw"><table><tr><th>ID</th><th>Customer</th><th>Milk</th><th>Scheduled</th><th>Delivered</th><th>Difference</th><th>Status</th><th>Amount</th></tr>${S.dels.slice().reverse().map(d=>`<tr><td>${d.id}</td><td>${esc(d.cust)}</td><td>${nm(d.m)}</td><td>${L(d.sched)}</td><td>${L(d.actual)}</td><td>${L(d.actual-d.sched)}</td><td>${d.st}</td><td>${R(d.actual*d.price)}</td></tr>`).join('')||'<tr><td colspan=8 class="mut">No deliveries yet</td></tr>'}</table></div>`}
+
+function vClose(){const t=tot();let rows='',mis=false;
+ for(const m of MILKS){const s=stock(m.id),a=S.closed?S.closed.act[m.id]:null,d=a===null?null:a-s.exp;if(d!==null&&Math.abs(d)>1e-9)mis=true;
+  rows+=`<tr><td>${m.name}</td><td>${L(s.o)}</td><td>${L(s.p+s.r)}</td><td>${L(s.on)}</td><td>${L(s.off)}</td><td>${L(s.w)}</td><td><b>${L(s.exp)}</b></td><td>${S.closed?L(a):`<input id="ac_${m.id}" type="number" step="0.25" min="0" style="min-width:80px">`}</td><td>${d===null?'-':(d>0?'+':'')+L(d)}</td></tr>`}
+ return `<h2>Milk reconciliation</h2><div class="tw"><table><tr><th>Milk</th><th>Opening</th><th>In</th><th>Online</th><th>Offline</th><th>Wastage</th><th>Expected</th><th>Physical</th><th>Difference</th></tr>${rows}</table></div>
+${S.closed?(mis?'<div class="alert w">⚠ Stock mismatch – requires review</div>':'<div class="alert g">✔ Stock matches</div>'):''}
+<h2>Money reconciliation</h2><div class="grid">${C('Online sales',R(t.dsale))}${C('Offline sales',R(t.osale))}${C('Total expected',R(t.sales))}${C('Amount received',R(t.rec),'ok')}${C('Pending',R(t.pend),t.pend>0?'warn':'')}${C('Expenses',R(t.ex))}${C('Net collection',R(t.rec-t.ex))}</div>
+${S.closed?`<div class="alert g">Day closed on ${S.closed.at}. Records are locked.</div>`:`<h2>Close the day</h2><div class="row"><label>Expenses today ₹<input id="ce" type="number" min="0"></label><button class="btn" onclick="closeDay()">Confirm &amp; close day</button></div><p class="mut">Count the milk physically, enter it in the table above, then close. Closing can be done only once.</p>`}`}
+
+function render(){
+ $('nav').innerHTML=TABS.map(([k,n])=>`<button class="${k===tab?'on':''}" onclick="tab='${k}';msg='';render()">${n}</button>`).join('');
+ const views={dash:vDash,inv:vInv,pos:vPos,del:vDel,close:vClose};
+ $('app').innerHTML=(msg?`<div class="alert ${/Not enough|Enter|Check|closed|Already|more than/.test(msg)?'r':'g'}">${esc(msg)}</div>`:'')+(S.closed&&tab!=='close'?'<div class="alert w">Today is closed.</div>':'')+views[tab]();
+}
+render();
+</script></body></html>
